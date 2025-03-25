@@ -28,8 +28,12 @@ export default function AuthForm() {
         await createUserWithEmailAndPassword(auth, email, password);
         router.push("/");
       }
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError("An unknown error occurred.");
+      }
     }
   };
 
@@ -41,9 +45,7 @@ export default function AuthForm() {
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">
-            Email
-          </label>
+          <label className="text-sm font-medium text-gray-700">Email</label>
           <motion.input
             whileFocus={{ scale: 1.01 }}
             type="email"
