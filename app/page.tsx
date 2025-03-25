@@ -1,10 +1,9 @@
 import TodoApp from "@/components/TodoApp";
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <section className="flex flex-col items-center justify-center h-screen">
+    <main className="flex flex-col items-center justify-center mt-5">
       <TodoApp />
-    </section>
-   
+    </main>
   );
 }

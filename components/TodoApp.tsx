@@ -1,100 +1,114 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { addTodo, fetchTodos, deleteTodo } from "@/lib/todoService";
+import { Todo } from "@/types/todo";
 import { Button } from "./ui/button";
-import TodoList from "./TodoList";
-import {
-  addTodo,
-  getAllTodos,
-  deleteTodo,
-  updateTodo,
-} from "@/utils/supabasefunction";
-import { Todo } from "@/utils/interface";
+import { PlusIcon, TrashIcon } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
-const TodoApp = () => {
+export default function TodoApp() {
+  const [userId, setUserId] = useState<string | null>(null);
   const [todos, setTodos] = useState<Todo[]>([]);
-  const [title, setTitle] = useState<string>("");
+  const [input, setInput] = useState("");
 
   useEffect(() => {
-    const getTodos = async () => {
-      try {
-        console.log("Fetching todos...");
-        const fetchedTodos = await getAllTodos();
-        console.log("Fetched todos:", fetchedTodos);
-        setTodos(fetchedTodos || []);
-      } catch (error) {
-        console.error("Failed to fetch todos:", error);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setUserId(user.uid);
+        const todos = await fetchTodos(user.uid);
+        setTodos(todos);
+      } else {
+        setUserId(null);
         setTodos([]);
       }
-    };
-    getTodos();
+    });
+    return () => unsubscribe();
   }, []);
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    if (title === "") return;
-
-    try {
-      await addTodo(title);
-      const todos = await getAllTodos();
-      setTodos(todos || []);
-      setTitle("");
-    } catch (error) {
-      console.error("Failed to add todo:", error);
-    }
+  const handleAdd = async () => {
+    if (!input.trim() || !userId) return;
+    const id = await addTodo(userId, input);
+    setTodos((prev) => [...prev, { id, text: input }]);
+    setInput("");
+    toast.success("Task added");
   };
 
-  const handleDelete = async (id: number) => {
-    try {
-      await deleteTodo(id);
-      setTodos(todos.filter((todo) => todo.id !== id));
-    } catch (error) {
-      console.error("Failed to delete todo:", error);
-    }
-  };
-
-  const handleUpdate = async (id: number, newTitle: string) => {
-    try {
-      await updateTodo(id, newTitle);
-      setTodos(
-        todos.map((todo) =>
-          todo.id === id ? { ...todo, title: newTitle } : todo
-        )
-      );
-    } catch (error) {
-      console.error("Failed to update todo:", error);
-    }
+  const handleDelete = async (id: string) => {
+    if (!userId) return;
+    await deleteTodo(id);
+    setTodos((prev) => prev.filter((todo) => todo.id !== id));
+    toast.success("Task deleted");
   };
 
   return (
-    <section className="flex flex-col h-screen w-full max-w-5xl mx-auto px-4">
-      <div className="sticky top-0 bg-white py-6 shadow-md z-10 w-full">
-        <h1 className="text-3xl font-bold mb-6 text-center">Todo App</h1>
-        <form
-          onSubmit={handleSubmit}
-          className="mb-4 flex justify-center gap-2"
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-3"
+    >
+      <motion.h2
+        className="text-3xl font-extrabold tracking-wider bg-gradient-to-r from-blue-600 to-purple-600 text-transparent bg-clip-text"
+        whileHover={{ scale: 1.05 }}
+      >
+        Todo List
+      </motion.h2>
+
+      {userId ? (
+        <motion.form
+          className="flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleAdd();
+          }}
         >
           <input
-            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            className="border px-3 py-2 w-full rounded-lg transition-all duration-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
             placeholder="Add a task"
-            className="shadow-lg p-3 outline-none rounded-lg w-full max-w-2xl"
-            onChange={(e) => setTitle(e.target.value)}
-            value={title}
           />
-          <Button className="shadow-lg border-2 px-6 py-2 rounded-lg bg-green-300 text-black hover:bg-green-400 transition-colors">
+          <Button
+            type="submit"
+            className="bg-gradient-to-r from-blue-500 to-blue-700 text-white rounded-lg cursor-pointer px-4 py-2 transition-all duration-200 hover:scale-105 hover:shadow-lg"
+          >
+            <PlusIcon />
             Add
           </Button>
-        </form>
-      </div>
-      <div className="flex-1 overflow-hidden py-4">
-        <TodoList
-          todos={todos}
-          onDelete={handleDelete}
-          onUpdate={handleUpdate}
-        />
-      </div>
-    </section>
-  );
-};
+        </motion.form>
+      ) : (
+        <p className="text-gray-500">※You need to login to add tasks</p>
+      )}
 
-export default TodoApp;
+      <ul className="space-y-2">
+        <AnimatePresence mode="popLayout">
+          {todos.map((todo) => (
+            <motion.li
+              key={todo.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="flex justify-between bg-gradient-to-r from-gray-50 to-gray-100 font-semibold p-3 shadow-md rounded-lg hover:shadow-lg transition-all duration-200"
+            >
+              <span className="text-gray-700">{todo.text}</span>
+              {userId && (
+                <motion.div whileHover={{ scale: 1.05 }}>
+                  <Button
+                    onClick={() => handleDelete(todo.id)}
+                    className="text-white bg-gradient-to-r from-red-500 to-red-600 cursor-pointer transition-all duration-200 hover:scale-105 rounded-lg"
+                  >
+                    <TrashIcon />
+                  </Button>
+                </motion.div>
+              )}
+            </motion.li>
+          ))}
+        </AnimatePresence>
+      </ul>
+    </motion.div>
+  );
+}
